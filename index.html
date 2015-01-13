@@ -14,80 +14,130 @@
     <script src="https://cdn.firebase.com/js/client/2.0.5/firebase.js"></script>
     <script src="https://maps.googleapis.com/maps/api/js?v=3.exp&libraries=visualization"></script>
     <script>
-    var map
+    var map;
     
-function initialize() {
-  var myLatlng = new google.maps.LatLng(33.75294,-84.40176);
-  var mapOptions = {
-    zoom: 15,
-    center: myLatlng,
-    mapTypeId: google.maps.MapTypeId.SATELLITE
-  }
-  
-  map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
-
-}
-
-google.maps.event.addDomListener(window, 'load', initialize);
-
-    var ref = new Firebase('https://crimsonmap.firebaseio.com');
- 
-    var pointList = [];
+    function initialize() {
+      var myLatlng = new google.maps.LatLng(33.75294,-84.40176);
+      var mapOptions = {
+        zoom: 15,
+        center: myLatlng,
+        mapTypeId: google.maps.MapTypeId.SATELLITE
+      }
+      
+      map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
+    
+    }
+    
     var heatmap;
-    var count = 0;
+    var ref = new Firebase('https://crimsonmap.firebaseio.com');
+    var database;
     
+    var currentTime = new Date();
+    function doLoad(e) {
+        document.getElementById("hourOfDay").value = currentTime.getHours().toString();
+        document.getElementById("dayOfWeek").selectedIndex = currentTime.getDay();
+    };
     
     ref.on("value", function(snapshot) {
-	  console.log(snapshot.val());
-	  console.log(snapshot.numChildren());
-	  snapshot.forEach(function(stuff) {
-        count = count + 1;
-
-    	console.log(stuff.child(0).val());
-        console.log(stuff.key());
-    	var latlngStr = stuff.child("0").val().split(",",2);
-    	
-		var lat = parseFloat(latlngStr[0]);
-		var lng = parseFloat(latlngStr[1]);
-		var glatlng = new google.maps.LatLng(lat, lng);
-
-        pointList.push(glatlng);
-        
-        var name = stuff.key();
-        
-        //new google.maps.Marker({
-        //        position: glatlng,
-      	//	    map: map,
-      	//	    title: name
-	  	//    });
-        
-		
-        
-    	 
-        
-        if(count == 2528)
-        {
-            
-            
-            var pointArray = new google.maps.MVCArray(pointList);
-            
-            heatmap = new google.maps.visualization.HeatmapLayer({
-                data: pointArray
-            });
-
-            heatmap.setMap(map);
-            heatmap.set('radius', 20);
-        }
-        
-	  
-	  });
-	
-	}, function (errorObject) {
-	  console.log("The read failed: " + errorObject.code);
-	});
+          console.log(snapshot.val());
+    	  console.log(snapshot.numChildren());
+    	  database = snapshot
+          buildMap();
+    	  }, function (errorObject) {
+          console.log("The read failed: " + errorObject.code);
+    	});
     
+    function buildMap() {
+    
+        google.maps.event.addDomListener(window, 'load', initialize);
+     
+        var pointList = [];
+        var count = 0;
+        
+        database.forEach(function(stuff) {
+            //console.log(stuff.child(0).val());
+            //console.log(stuff.key());
+        	var latlngStr = stuff.child("0").val().split(",",2);
+        	
+            var type = stuff.child("1").val();
+            var weekDay = stuff.child("2").val();
+            var badlyFormattedTime = stuff.child("3").val();
+            
+            var hourDate = new Date(badlyFormattedTime);
+            var hour = hourDate.getHours();
+            
+            var filterPoint = false;
+            switch(type)
+            {
+                case "AGG ASSAULT":
+                    filterPoint = document.getElementById("aggassault").checked
+                    break;
+                case "AUTO THEFT":
+                    filterPoint = document.getElementById("autotheft").checked
+                    break;
+                case "BURGLARY":
+                    filterPoint = document.getElementById("burglary").checked
+                    break;
+                case "HOMICIDE":
+                    filterPoint = document.getElementById("homicide").checked
+                    break;
+                case "LARCENY":
+                    filterPoint = document.getElementById("larceny").checked
+                    break;
+                case "RAPE":
+                    filterPoint = document.getElementById("rape").checked
+                    break;
+                case "ROBBERY":
+                    filterPoint = document.getElementById("robbery").checked
+                    break;
+            }
+            
+            if(filterPoint)
+            {
+                filterPoint = document.getElementById("ignoreDay").checked || weekDay == document.getElementById("dayOfWeek").value;
+            }
+            
+            if(filterPoint)
+            {
+                filterPoint = document.getElementById("ignoreHour").checked || hour.toString() == document.getElementById("hourOfDay").value;
+            }
+            
+            if(filterPoint)
+            {
+                count = count + 1;
+        		var lat = parseFloat(latlngStr[0]);
+        		var lng = parseFloat(latlngStr[1]);
+        		var glatlng = new google.maps.LatLng(lat, lng);
+        
+                pointList.push(glatlng);
+                
+                //var name = stuff.key();
+                
+                //new google.maps.Marker({
+                //        position: glatlng,
+              	//	    map: map,
+              	//	    title: name
+        	  	//    });   
+            }
+    	
+    	});
+        
+        var pointArray = new google.maps.MVCArray(pointList);
+                
+        heatmap = new google.maps.visualization.HeatmapLayer({
+            data: pointArray
+        });
+    
+        heatmap.setMap(map);
+        heatmap.set('radius', 20);
+        
+        document.getElementById("points").innerText = count
+        
+    }
     function toggleHeatmap() {
-      heatmap.setMap(heatmap.getMap() ? null : map);
+      //heatmap.setMap(heatmap.getMap() ? null : map);
+      if(heatmap) { heatmap.setMap(null); }
+      buildMap();
     }
     
     function changeGradient() {
@@ -109,7 +159,7 @@ google.maps.event.addDomListener(window, 'load', initialize);
       ]
       heatmap.set('gradient', heatmap.get('gradient') ? null : gradient);
     }
-    
+
     function changeRadius() {
         var x = parseInt(document.getElementById("radiusText").value);
         if(x > 3)
@@ -126,18 +176,78 @@ google.maps.event.addDomListener(window, 'load', initialize);
       heatmap.set('dissipating', heatmap.get('dissipating') ? false : true);
     }
 
+buildMap();
     
     </script>
   </head>
-  <body>
+  <body onload="doLoad()">
     <div id="panel">
+      <div id="checkboxes">
+        <label for="aggassault" >Agg Assault:</label>
+        <input type="checkbox" id="aggassault" onchange="toggleHeatmap()" checked>
+        <label for="autotheft" style='margin-left: 20px;'>Auto Theft:</label>
+        <input type="checkbox" id="autotheft" onchange="toggleHeatmap()" checked>
+        <label for="burglary" style='margin-left: 20px;'>Burglary:</label>
+        <input type="checkbox" id="burglary" onchange="toggleHeatmap()" checked>
+        <label for="homicide" style='margin-left: 20px;'>Homicide:</label>
+        <input type="checkbox" id="homicide" onchange="toggleHeatmap()" checked>
+        <label for="larceny" style='margin-left: 20px;'>Larceny:</label>
+        <input type="checkbox" id="larceny" onchange="toggleHeatmap()" checked>
+        <label for="rape" style='margin-left: 20px;'>Rape:</label>
+        <input type="checkbox" id="rape" onchange="toggleHeatmap()" checked>
+        <label for="robbery" style='margin-left: 20px;'>Robbery:</label>
+        <input type="checkbox" id="robbery" onchange="toggleHeatmap()" checked>
+    </div>
+    <div id="timeSelection">
+        <label>Day of week: </label>
+        <select id="dayOfWeek" onchange="toggleHeatmap()">
+            <option value="Sun">Sunday</option>
+            <option value="Mon">Monday</option>
+            <option value="Tue">Tuesday</option>
+            <option value="Wed">Wednesday</option>
+            <option value="Thu">Thursday</option>
+            <option value="Fri">Friday</option>
+            <option value="Sat">Saturday</option>
+        </select>
+        <label for="ignoreDay" style='margin-left: 20px;'>Ingore Day:</label>
+        <input type="checkbox" id="ignoreDay" onchange="toggleHeatmap()" checked>
+        <label>" Hour of day"</label>
+        <select id="hourOfDay" onchange="toggleHeatmap()">
+          <option value="0">12AM</option>
+          <option value="1">1AM</option>
+          <option value="2">2AM</option>
+          <option value="3">3AM</option>
+          <option value="4">4AM</option>
+          <option value="5">5AM</option>
+          <option value="6">6AM</option>
+          <option value="7">7AM</option>
+          <option value="8">8AM</option>
+          <option value="9">9AM</option>
+          <option value="10">10AM</option>
+          <option value="11">11AM</option>
+          <option value="12">12PM</option>
+          <option value="13">1PM</option>
+          <option value="14">2PM</option>
+          <option value="15">3PM</option>
+          <option value="16">4PM</option>
+          <option value="17">5PM</option>
+          <option value="18">6PM</option>
+          <option value="19">7PM</option>
+          <option value="20">8PM</option>
+          <option value="21">9PM</option>
+          <option value="22">10PM</option>
+          <option value="23">11PM</option>
+        </select>
+        <label for="ignoreHour" style='margin-left: 20px;'>Ingore Hour:</label>
+        <input type="checkbox" id="ignoreHour" onchange="toggleHeatmap()" checked>
+      </div>
       <button onclick="toggleHeatmap()">Toggle Heatmap</button>
       <button onclick="changeGradient()">Change gradient</button>
       <b>Change radius:</b>
       <input onchange="changeRadius()" type="number" id="radiusText" value="20" style="width: 50px;" ></input>
       <button onclick="changeOpacity()">Change opacity</button>
       <button onclick="changeDis()">Change dissipating</button>
-      Points: 2528, Zone: 507, Current: All Data, Filters coming soon!
+      Points: <Label id="points">0</Label>, Zone: 507
     </div>
     <div id="map-canvas"></div>
   </body>
