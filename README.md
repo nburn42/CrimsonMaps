@@ -1,2 +1,3 @@
 # CrimsonMaps
-All the things!
+Check out the live site at
+www.Nathan.Solutions
